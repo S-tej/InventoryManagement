@@ -9,6 +9,9 @@ Green-Tech Inventory Assistant
 ## Estimated Time Spent:
 6 hours
 
+## Youtube link 
+ - [Link](https://www.youtube.com/watch?v=yhfRAwYrLEs)
+
 ---
 
 ## 🚀 Quick Start
@@ -80,3 +83,4 @@ npm test
 - AI + fallback system
 - Sustainability insights
 - Waste prediction
+
