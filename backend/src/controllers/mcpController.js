@@ -8,31 +8,46 @@ const AIQueryLog = require("../models/AIQueryLog");
 const {
   calculateSustainabilityScore,
 } = require("../services/sustainabilityService");
+const { fallbackResponse } = require("../services/fallbackService");
+const Batch = require("../models/Batch");
 
 exports.handleQuery = async (req, res) => {
   try {
     const { query } = req.body;
 
-    const { intent } = await parseQueryWithAI(query);
+    let intent = "UNKNOWN";
+
+    try {
+      const parsed = await parseQueryWithAI(query);
+      intent = parsed.intent;
+    } catch {
+      console.log("⚠️ Intent fallback used");
+    }
 
     // 🔥 Fetch ALL items + predictions
     const items = await InventoryItem.find();
     const predictions = await Prediction.find().populate("item_id");
+    const batches = await Batch.find();
 
     const context = {
       items: items.slice(0, 20).map((i) => {
-        const pred = predictions.find((p) => p.item_id._id.equals(i._id));
+        const itemBatches = batches.filter(
+          (b) => b.item_id.toString() === i._id.toString(),
+        );
 
         return {
           name: i.name,
           quantity: i.quantity,
           min_threshold: i.min_threshold,
-          expiry_date: i.expiry_date,
-          sustainability_score: pred
-            ? calculateSustainabilityScore(i, pred)
-            : null,
+
+          // 🔥 IMPORTANT FIX
+          batches: itemBatches.map((b) => ({
+            quantity: b.quantity,
+            expiry_date: b.expiry_date,
+          })),
         };
       }),
+
       predictions: predictions.slice(0, 20).map((p) => ({
         item_name: p.item_id.name,
         predicted_depletion_date: p.predicted_depletion_date,
@@ -53,10 +68,34 @@ exports.handleQuery = async (req, res) => {
 
     res.json({ response: responseText });
   } catch (error) {
-    console.error(error);
+    console.error("⚠️ AI failed → using fallback");
 
-    res.json({
-      response: "AI unavailable. Please try again.",
+    const items = await InventoryItem.find();
+    const predictions = await Prediction.find().populate("item_id");
+
+    const context = {
+      items: items.map((i) => ({
+        name: i.name,
+        quantity: i.quantity,
+        min_threshold: i.min_threshold,
+        expiry_date: i.expiry_date,
+      })),
+      predictions: predictions.map((p) => ({
+        item_name: p.item_id.name,
+        predicted_depletion_date: p.predicted_depletion_date,
+      })),
+    };
+
+    const fallbackText = fallbackResponse(req.body.query, context);
+
+    await AIQueryLog.create({
+      query_text: req.body.query,
+      intent_detected: "FALLBACK",
+      context_sent: context,
+      response: fallbackText,
+      fallback_used: true,
     });
+
+    res.json({ response: fallbackText });
   }
 };
