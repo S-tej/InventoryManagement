@@ -1,10 +1,15 @@
 const getAverageUsage = (usageHistory) => {
-  if (usageHistory.length === 0) return 0;
+  const consumption = usageHistory.filter(u => u.type === "CONSUMPTION");
 
-  const total = usageHistory.reduce((sum, u) => sum + u.quantity_used, 0);
+  if (consumption.length === 0) return 0;
 
-  const first = new Date(usageHistory[0].timestamp);
-  const last = new Date(usageHistory[usageHistory.length - 1].timestamp);
+  const total = consumption.reduce(
+    (sum, u) => sum + Math.abs(u.change),
+    0
+  );
+
+  const first = new Date(consumption[0].timestamp);
+  const last = new Date(consumption[consumption.length - 1].timestamp);
 
   const days = (last - first) / (1000 * 60 * 60 * 24);
 
@@ -14,25 +19,24 @@ const getAverageUsage = (usageHistory) => {
 
 // 🔥 NEW: Confidence Calculation
 const calculateConfidence = (usageHistory) => {
-  if (usageHistory.length === 0) return 0;
+  const consumption = usageHistory.filter(u => u.type === "CONSUMPTION");
 
-  // 📊 1. Data Volume Score
-  const dataScore = Math.min(1, usageHistory.length / 10);
+  if (consumption.length === 0) return 0;
 
-  // 📊 2. Consistency Score (variance-based)
-  const values = usageHistory.map(u => u.quantity_used);
+  const dataScore = Math.min(1, consumption.length / 10);
+
+  const values = consumption.map(u => Math.abs(u.change));
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
 
   const variance =
     values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
 
-  const consistencyScore = 1 / (1 + variance); // lower variance = higher score
+  const consistencyScore = 1 / (1 + variance);
 
-  // 🔥 FINAL CONFIDENCE (average of both)
   const confidence = (dataScore + consistencyScore) / 2;
 
-  return Number(confidence.toFixed(2)); // clean number like 0.73
+  return Number(confidence.toFixed(2));
 };
 
 

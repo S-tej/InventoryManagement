@@ -1,54 +1,62 @@
-const { parseQueryWithAI, generateAIResponse } = require("../services/aiService");
+const {
+  parseQueryWithAI,
+  generateAIResponse,
+} = require("../services/aiService");
 const InventoryItem = require("../models/InventoryItem");
 const Prediction = require("../models/Prediction");
 const AIQueryLog = require("../models/AIQueryLog");
+const {
+  calculateSustainabilityScore,
+} = require("../services/sustainabilityService");
 
 exports.handleQuery = async (req, res) => {
   try {
     const { query } = req.body;
 
-    // 🧠 Step 1: LLM parses query
-    const { intent, item_name } = await parseQueryWithAI(query);
+    const { intent } = await parseQueryWithAI(query);
 
-    // 📦 Step 2: Fetch controlled data
-    const item = await InventoryItem.findOne({
-      name: new RegExp(item_name, "i")
-    });
-
-    if (!item) {
-      return res.json({ response: "Item not found in inventory" });
-    }
-
-    const prediction = await Prediction.findOne({ item_id: item._id });
+    // 🔥 Fetch ALL items + predictions
+    const items = await InventoryItem.find();
+    const predictions = await Prediction.find().populate("item_id");
 
     const context = {
-      item: {
-        name: item.name,
-        quantity: item.quantity,
-        expiry_date: item.expiry_date
-      },
-      prediction
+      items: items.slice(0, 20).map((i) => {
+        const pred = predictions.find((p) => p.item_id._id.equals(i._id));
+
+        return {
+          name: i.name,
+          quantity: i.quantity,
+          min_threshold: i.min_threshold,
+          expiry_date: i.expiry_date,
+          sustainability_score: pred
+            ? calculateSustainabilityScore(i, pred)
+            : null,
+        };
+      }),
+      predictions: predictions.slice(0, 20).map((p) => ({
+        item_name: p.item_id.name,
+        predicted_depletion_date: p.predicted_depletion_date,
+        confidence: p.confidence_score,
+      })),
     };
 
-    // 🤖 Step 3: Generate response
-    const responseText = await generateAIResponse(intent, context);
+    // 🤖 AI handles everything
+    const responseText = await generateAIResponse(intent, context, query);
 
-    // 💾 Step 4: Log
     await AIQueryLog.create({
       query_text: query,
       intent_detected: intent,
       context_sent: context,
       response: responseText,
-      fallback_used: false
+      fallback_used: false,
     });
 
     res.json({ response: responseText });
-
   } catch (error) {
     console.error(error);
 
     res.json({
-      response: "Something went wrong, fallback triggered"
+      response: "AI unavailable. Please try again.",
     });
   }
 };

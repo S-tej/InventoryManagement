@@ -23,7 +23,7 @@ Return ONLY valid JSON:
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt
+      contents: prompt,
     });
 
     let text = response.text;
@@ -32,42 +32,51 @@ Return ONLY valid JSON:
     if (match) {
       return JSON.parse(match[0]);
     }
-
   } catch (err) {
     console.error("Gemini parse error:", err);
   }
 
   return {
     intent: "UNKNOWN",
-    item_name: ""
+    item_name: "",
   };
 };
 
 // 🤖 Response Generator
-const generateAIResponse = async (intent, context) => {
+const generateAIResponse = async (intent, context, query) => {
   const prompt = `
 You are an AI inventory assistant focused on sustainability.
+
+User Query:
+"${query}"
 
 Context:
 ${JSON.stringify(context)}
 
-Intent: ${intent}
+Instructions:
+1. Answer clearly
+2. Filter items based on query (time, stock, expiry)
+3. ALWAYS include:
+   - Explanation (why this result)
+   - Recommendation (what to do)
 
-Give a clear, human-friendly response.
-Also suggest smart actions like reducing waste or reordering.
+Examples:
+- If item runs out soon → suggest restocking
+- If overstock → suggest reducing purchase
+- If expiry soon → suggest prioritizing usage
+
+Keep response:
+- Plain text
+- Concise but helpful
+- No markdown
 `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+  });
 
-    return response.text;
-  } catch (err) {
-    console.error("Gemini response error:", err);
-    return "AI unavailable, fallback used";
-  }
+  return response.text;
 };
 
 module.exports = {

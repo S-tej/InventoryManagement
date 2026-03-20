@@ -18,7 +18,8 @@ const inventorySchema = new mongoose.Schema(
     },
 
     expiry_date: {
-      type: Date
+      type: Date,
+      default: null
     },
 
     min_threshold: {

@@ -48,11 +48,21 @@ const runInventoryAnalysis = async () => {
       const daysToExpiry =
         (new Date(item.expiry_date) - new Date()) / (1000 * 60 * 60 * 24);
 
-      if (daysToExpiry < 2) {
+      if (daysToExpiry <= 2 && daysToExpiry > 0) {
+        await Alert.deleteMany({ item_id: item._id });
         alerts.push({
           item_id: item._id,
           type: "EXPIRY",
-          message: `${item.name} expires in ${Math.round(daysToExpiry)} days`,
+          message: `${item.name} will expire in ${Math.ceil(daysToExpiry)} day(s)`,
+        });
+      }
+
+      if (daysToExpiry <= 0) {
+        await Alert.deleteMany({ item_id: item._id });
+        alerts.push({
+          item_id: item._id,
+          type: "EXPIRED",
+          message: `${item.name} has expired`,
         });
       }
     }

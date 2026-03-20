@@ -44,12 +44,15 @@ exports.updateItem = async (req, res) => {
       return res.status(404).json({ message: "Item not found" });
 
     const newQuantity = req.body.quantity;
+    const oldQuantity = existingItem.quantity;
 
-    // 📊 Track usage
-    if (newQuantity !== undefined && newQuantity < existingItem.quantity) {
+    if (newQuantity !== undefined) {
+      const change = newQuantity - oldQuantity;
+
       await UsageHistory.create({
         item_id: existingItem._id,
-        quantity_used: existingItem.quantity - newQuantity,
+        change: change,
+        type: change < 0 ? "CONSUMPTION" : "RESTOCK",
       });
     }
 
