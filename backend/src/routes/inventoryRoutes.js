@@ -5,15 +5,20 @@ const {
   createItem,
   getAllItems,
   getItemById,
-  updateItem,
-  deleteItem
+  deleteItem,
+  addStock,
+  consumeStock,
+  getBatches
 } = require("../controllers/inventoryController");
 
 // CRUD Routes
 router.post("/", createItem);
 router.get("/", getAllItems);
+router.get("/:id/batches", getBatches);
 router.get("/:id", getItemById);
-router.put("/:id", updateItem);
 router.delete("/:id", deleteItem);
+router.post("/add-stock", addStock);
+router.post("/consume", consumeStock);
+
 
 module.exports = router;

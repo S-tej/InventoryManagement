@@ -2,6 +2,7 @@ const { computePrediction } = require("../services/predictionService");
 const InventoryItem = require("../models/InventoryItem");
 const UsageHistory = require("../models/UsageHistory");
 const Prediction = require("../models/Prediction");
+const Batch = require("../models/Batch");
 
 // ➕ CREATE ITEM
 exports.createItem = async (req, res) => {
@@ -35,50 +36,44 @@ exports.getItemById = async (req, res) => {
   }
 };
 
-// ✏️ UPDATE ITEM
-exports.updateItem = async (req, res) => {
+// ✏️ CONSUME STOCK (FIFO)
+exports.consumeStock = async (req, res) => {
   try {
-    const existingItem = await InventoryItem.findById(req.params.id);
+    const { item_id, quantity_used } = req.body;
 
-    if (!existingItem)
-      return res.status(404).json({ message: "Item not found" });
+    let remaining = quantity_used;
 
-    const newQuantity = req.body.quantity;
-    const oldQuantity = existingItem.quantity;
+    const batches = await Batch.find({ item_id }).sort("expiry_date");
 
-    if (newQuantity !== undefined) {
-      const change = newQuantity - oldQuantity;
+    for (const batch of batches) {
+      if (remaining <= 0) break;
 
-      await UsageHistory.create({
-        item_id: existingItem._id,
-        change: change,
-        type: change < 0 ? "CONSUMPTION" : "RESTOCK",
-      });
+      if (batch.quantity <= remaining) {
+        remaining -= batch.quantity;
+        await batch.deleteOne();
+      } else {
+        batch.quantity -= remaining;
+        remaining = 0;
+        await batch.save();
+      }
     }
 
-    const updatedItem = await InventoryItem.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true },
-    );
+    // 🔥 ✅ ADD THIS HERE (VERY IMPORTANT)
+    await UsageHistory.create({
+      item_id,
+      quantity_used
+    });
 
-    // 🔥 RECOMPUTE PREDICTION (IMPORTANT)
-    const usage = await UsageHistory.find({ item_id: updatedItem._id }).sort(
-      "timestamp",
-    );
+    // 🔥 Update total quantity
+    const updatedBatches = await Batch.find({ item_id });
+    const total = updatedBatches.reduce((sum, b) => sum + b.quantity, 0);
 
-    const prediction = computePrediction(updatedItem, usage);
+    await InventoryItem.findByIdAndUpdate(item_id, {
+      quantity: total
+    });
 
-    await Prediction.findOneAndUpdate(
-      { item_id: updatedItem._id },
-      {
-        predicted_depletion_date: prediction.depletion_date,
-        confidence_score: prediction.confidence,
-      },
-      { upsert: true, returnDocument: "after" },
-    );
+    res.json({ message: "Stock consumed successfully" });
 
-    res.json(updatedItem);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -95,4 +90,36 @@ exports.deleteItem = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+};
+
+// ➕ ADD STOCK (NEW)
+exports.addStock = async (req, res) => {
+  try {
+    const { item_id, quantity, expiry_date } = req.body;
+
+    const batch = await Batch.create({
+      item_id,
+      quantity,
+      expiry_date
+    });
+
+    // 🔥 Update total quantity
+    const batches = await Batch.find({ item_id });
+    const total = batches.reduce((sum, b) => sum + b.quantity, 0);
+
+    await InventoryItem.findByIdAndUpdate(item_id, {
+      quantity: total
+    });
+
+    res.json(batch);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getBatches = async (req, res) => {
+  const batches = await Batch.find({ item_id: req.params.id })
+    .sort("expiry_date");
+
+  res.json(batches);
 };
