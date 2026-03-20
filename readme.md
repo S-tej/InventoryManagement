@@ -66,9 +66,9 @@ npm test
 - Multi-user system
 
 ### What next:
-- Notifications
+- Notifications for the alerts generated 
 - Mobile app
-- Better ML model
+- Better ML model for fallback
 
 ### Known limitations:
 - Basic fallback NLP
