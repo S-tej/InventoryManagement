@@ -40,10 +40,10 @@ const calculateConfidence = (usageHistory) => {
 };
 
 
-const computePrediction = (item, usageHistory) => {
+const computePrediction = (item, usageHistory, batches = []) => {
   const avgUsage = getAverageUsage(usageHistory);
 
-  if (avgUsage === 0) {
+  if (avgUsage === 0 || batches.length === 0) {
     return {
       days_left: null,
       depletion_date: null,
@@ -51,12 +51,23 @@ const computePrediction = (item, usageHistory) => {
     };
   }
 
-  const daysLeft = item.quantity / avgUsage;
+  // 🔥 FIFO: sort batches by expiry
+  const sortedBatches = [...batches].sort(
+    (a, b) => new Date(a.expiry_date) - new Date(b.expiry_date)
+  );
+
+  let remaining = avgUsage;
+  let daysLeft = 0;
+
+  for (const batch of sortedBatches) {
+    const daysForBatch = batch.quantity / avgUsage;
+
+    daysLeft += daysForBatch;
+  }
 
   const depletionDate = new Date();
   depletionDate.setDate(depletionDate.getDate() + daysLeft);
 
-  // 🔥 Use dynamic confidence
   const confidence = calculateConfidence(usageHistory);
 
   return {

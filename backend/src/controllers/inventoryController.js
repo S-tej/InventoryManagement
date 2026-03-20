@@ -7,6 +7,9 @@ const Batch = require("../models/Batch");
 // ➕ CREATE ITEM
 exports.createItem = async (req, res) => {
   try {
+    if (!req.body.name || req.body.quantity < 0) {
+      return res.status(400).json({ error: "Invalid input" });
+    }
     const item = await InventoryItem.create(req.body);
     res.status(201).json(item);
   } catch (error) {
@@ -61,7 +64,7 @@ exports.consumeStock = async (req, res) => {
     // 🔥 ✅ ADD THIS HERE (VERY IMPORTANT)
     await UsageHistory.create({
       item_id,
-      quantity_used
+      quantity_used,
     });
 
     // 🔥 Update total quantity
@@ -69,11 +72,10 @@ exports.consumeStock = async (req, res) => {
     const total = updatedBatches.reduce((sum, b) => sum + b.quantity, 0);
 
     await InventoryItem.findByIdAndUpdate(item_id, {
-      quantity: total
+      quantity: total,
     });
 
     res.json({ message: "Stock consumed successfully" });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -100,7 +102,7 @@ exports.addStock = async (req, res) => {
     const batch = await Batch.create({
       item_id,
       quantity,
-      expiry_date
+      expiry_date,
     });
 
     // 🔥 Update total quantity
@@ -108,7 +110,7 @@ exports.addStock = async (req, res) => {
     const total = batches.reduce((sum, b) => sum + b.quantity, 0);
 
     await InventoryItem.findByIdAndUpdate(item_id, {
-      quantity: total
+      quantity: total,
     });
 
     res.json(batch);
@@ -118,8 +120,9 @@ exports.addStock = async (req, res) => {
 };
 
 exports.getBatches = async (req, res) => {
-  const batches = await Batch.find({ item_id: req.params.id })
-    .sort("expiry_date");
+  const batches = await Batch.find({ item_id: req.params.id }).sort(
+    "expiry_date",
+  );
 
   res.json(batches);
 };

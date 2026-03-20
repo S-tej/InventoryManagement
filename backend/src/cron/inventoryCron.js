@@ -39,6 +39,7 @@ const runInventoryAnalysis = async () => {
     const prediction = computePrediction(
       { ...item.toObject(), quantity: totalQuantity },
       usage,
+      batches, // 🔥 IMPORTANT
     );
 
     await Prediction.findOneAndUpdate(
@@ -85,6 +86,24 @@ const runInventoryAnalysis = async () => {
       }
     }
 
+    // 🔥 CRITICAL: WILL EXPIRE BEFORE CONSUMPTION
+    for (const batch of batches) {
+      if (!batch.expiry_date) continue;
+
+      const daysToExpire =
+        (new Date(batch.expiry_date) - new Date()) / (1000 * 60 * 60 * 24);
+
+      const daysToConsume = batch.quantity / (prediction.days_left || 1);
+
+      if (daysToExpire < daysToConsume) {
+        alerts.push({
+          item_id: item._id,
+          type: "WASTE_RISK",
+          message: `${item.name} batch may expire before it is consumed`,
+        });
+      }
+    }
+
     // 📦 STEP 7: OVERSTOCK
     if (prediction.days_left > 10) {
       alerts.push({
@@ -95,7 +114,9 @@ const runInventoryAnalysis = async () => {
     }
 
     // ⚠️ STEP 8: WASTE RISK (SMART 🔥)
-    const earliestBatch = batches[0];
+    const earliestBatch = [...batches].sort(
+      (a, b) => new Date(a.expiry_date) - new Date(b.expiry_date),
+    )[0];
 
     if (
       earliestBatch &&

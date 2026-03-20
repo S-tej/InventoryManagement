@@ -7,7 +7,7 @@ const alertSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["LOW_STOCK", "EXPIRY", "OVERSTOCK", "REORDER", "WASTE_RISK", "INFO"]
+    enum: ["LOW_STOCK", "EXPIRY", "OVERSTOCK", "REORDER", "WASTE_RISK", "INFO","EXPIRED"]
   },
   message: String,
   is_read: {
