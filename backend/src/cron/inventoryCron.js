@@ -14,6 +14,7 @@ const runInventoryAnalysis = async () => {
   const items = await InventoryItem.find();
 
   for (const item of items) {
+    console.log("👉 Processing item:", item.name);
     // 🔥 STEP 1: CLEAR OLD ALERTS
     await Alert.deleteMany({ item_id: item._id });
 
@@ -31,11 +32,13 @@ const runInventoryAnalysis = async () => {
     });
 
     // 🔥 STEP 4: USAGE + PREDICTION
-    const usage = await UsageHistory.find({ item_id: item._id }).sort("timestamp");
+    const usage = await UsageHistory.find({ item_id: item._id }).sort(
+      "timestamp",
+    );
 
     const prediction = computePrediction(
       { ...item.toObject(), quantity: totalQuantity },
-      usage
+      usage,
     );
 
     await Prediction.findOneAndUpdate(
@@ -44,7 +47,7 @@ const runInventoryAnalysis = async () => {
         predicted_depletion_date: prediction.depletion_date,
         confidence_score: prediction.confidence,
       },
-      { upsert: true, returnDocument: "after" }
+      { upsert: true, returnDocument: "after" },
     );
 
     // 🔔 STEP 5: LOW STOCK
@@ -61,15 +64,14 @@ const runInventoryAnalysis = async () => {
       if (!batch.expiry_date) continue;
 
       const days =
-        (new Date(batch.expiry_date) - new Date()) /
-        (1000 * 60 * 60 * 24);
+        (new Date(batch.expiry_date) - new Date()) / (1000 * 60 * 60 * 24);
 
       if (days <= 2 && days > 0) {
         alerts.push({
           item_id: item._id,
           type: "EXPIRY",
           message: `${item.name} batch (${batch.quantity}) expires in ${Math.ceil(
-            days
+            days,
           )} day(s)`,
         });
       }
@@ -109,6 +111,14 @@ const runInventoryAnalysis = async () => {
     }
 
     // 💾 STEP 9: SAVE ALERTS
+    console.log("🚨 Alerts generated:", alerts);
+    if (alerts.length === 0) {
+      alerts.push({
+        item_id: item._id,
+        type: "INFO",
+        message: `${item.name} is stable`,
+      });
+    }
     for (const alert of alerts) {
       await Alert.create(alert);
     }

@@ -23,8 +23,14 @@ app.get("/api/alerts", async (req, res) => {
   res.json(alerts);
 });
 
-connectDB();
-startCron();
+connectDB()
+  .then(() => {
+    // console.log("✅ DB Connected");
+    startCron(); // START ONLY AFTER DB CONNECTS
+  })
+  .catch(err => {
+    console.error("❌ DB connection failed:", err);
+  });
 
 const PORT = process.env.PORT || 5000;
 
